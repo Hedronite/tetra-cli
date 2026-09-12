@@ -1,6 +1,6 @@
 # Tetra
 
-**The world command of the Hedronite platform.**
+**The world command of the Hedronaut platform.**
 
 Nickel is the language. `tetractl` is the verb. Facet, HedronDB, and h3s stay engines.
 

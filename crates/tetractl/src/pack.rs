@@ -111,9 +111,9 @@ fn write_pack(out: &str, json: bool, quiet: bool) -> Result<(), CliError> {
         });
         ncl::emit_ok_json(&envelope)
     } else {
-        let root = format!("{out}/{}", hedron_ncl::pack::ROOT);
         let line1 = format!(
-            "ok {root} (contractSet={} files={})",
+            "ok {} (contractSet={} files={})",
+            written.root.display(),
             written.contract_set,
             hedron_ncl::pack::FILES.len()
         );
@@ -124,6 +124,12 @@ fn write_pack(out: &str, json: bool, quiet: bool) -> Result<(), CliError> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    fn pack_root(out: &str) -> PathBuf {
+        PathBuf::from(out).join(hedron_ncl::pack::ROOT)
+    }
+
     #[test]
     fn no_process_spawn() {
         let src = include_str!("pack.rs");
@@ -131,5 +137,16 @@ mod tests {
         let spawn = ["Command", "new"].join("::");
         assert!(!src.contains(&process), "pack must not mention {process}");
         assert!(!src.contains(&spawn), "pack must not spawn {spawn}");
+    }
+
+    #[test]
+    fn trailing_slash_out_uses_path_join() {
+        assert_eq!(pack_root("dir/").display().to_string(), "dir/hedron-ncl");
+        assert_eq!(pack_root("./x/").display().to_string(), "./x/hedron-ncl");
+        assert_eq!(pack_root("x//").display().to_string(), "x//hedron-ncl");
+        assert_ne!(
+            format!("{}/{}", "dir/", hedron_ncl::pack::ROOT),
+            pack_root("dir/").display().to_string()
+        );
     }
 }

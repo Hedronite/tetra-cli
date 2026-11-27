@@ -13,7 +13,7 @@ use crate::ncl::{self, INVALID_ARGUMENTS, OUTPUT_ERROR};
 use crate::SCHEMA_VERSION;
 
 const POD_PROFILE: &str = include_str!("../templates/pod_profile_gen.rs");
-const DOCS_EOD: &str = include_str!("../../hedron-ncl/src/gen/docs_eod.rs");
+const DOCS_EOD: &str = include_str!("../templates/docs_eod.rs");
 
 const POD_PROFILE_SHA: &str = "5c34d855b5012428350702e0b650de89f89879db3cda1fd9eb2abe5a01b828ad";
 const DOCS_EOD_SHA: &str = "e013d039590950065a0006aaf8868e3eee97af154e59aad1ab8c67cda5b9b33d";
@@ -240,6 +240,21 @@ mod tests {
     fn docs_eod_sha256_is_pinned() {
         assert_eq!(sha256_hex(DOCS_EOD.as_bytes()), DOCS_EOD_SHA);
         assert_eq!(DOCS_EOD, Target::DocsEod.source());
+    }
+
+    #[test]
+    fn templates_are_keyed_to_contract_set() {
+        let quoted = format!("\"{0}\"", hedron_ncl::CONTRACT_SET);
+        assert!(
+            POD_PROFILE.contains(&quoted),
+            "pod-profile must embed hedron_ncl::CONTRACT_SET"
+        );
+        assert_eq!(sha256_hex(POD_PROFILE.as_bytes()), POD_PROFILE_SHA);
+        assert_eq!(sha256_hex(DOCS_EOD.as_bytes()), DOCS_EOD_SHA);
+        assert_eq!(
+            sha256_hex(include_str!("../templates/docs_eod.rs").as_bytes()),
+            DOCS_EOD_SHA
+        );
     }
 
     #[test]

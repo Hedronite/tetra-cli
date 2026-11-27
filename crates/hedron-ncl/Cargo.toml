@@ -2,15 +2,15 @@
 name = "hedron-ncl"
 # Nickel contract pack + the only Nickel VM host on the platform (SPEC-nickel G0).
 # Follows the Facet CLI axis; MSRV inherits the workspace 1.95.
-version.workspace = true
+version = "0.8.1"
 # Edition 2021, not the workspace 2024: `gen` is a reserved keyword in 2024 and the
 # generated-predicate module must stay reachable as `hedron_ncl::gen::*` for
 # consumers that copy the output. MSRV still inherits the workspace 1.95.
 edition = "2021"
-license.workspace = true
+license = "MIT OR Apache-2.0"
 rust-version.workspace = true
 publish = true
-repository = "https://github.com/Hedronite/facet"
+repository = "https://github.com/Hedronite/tetra-cli"
 description = "Nickel contract pack for h3s / Facet / HedronDB: platform law, versioned release overlays, generated predicates"
 
 [lints]

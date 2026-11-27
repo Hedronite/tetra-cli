@@ -15,11 +15,11 @@ fn tetractl_and_tetra_share_help() {
     let t_help = String::from_utf8_lossy(&tetractl.stdout);
     let e_help = String::from_utf8_lossy(&tetra.stdout);
     assert!(
-        t_help.contains("does not reimplement"),
-        "tetractl help should say wrap not reimplement"
+        t_help.contains("Nickel VM"),
+        "tetractl help should say Tetra hosts the Nickel VM: {t_help}"
     );
     assert!(
-        e_help.contains("does not reimplement"),
-        "tetra help should say wrap not reimplement"
+        e_help.contains("Nickel VM"),
+        "tetra help should say Tetra hosts the Nickel VM: {e_help}"
     );
 }

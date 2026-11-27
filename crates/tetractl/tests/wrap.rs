@@ -271,10 +271,7 @@ fn both_bins_wrap_and_unknown_verbs_do_not_reach_facet() {
         let help = tetractl(bin, &["--help"], &sb.root);
         assert_eq!(help.status.code(), Some(0));
         let text = String::from_utf8(help.stdout).unwrap();
-        assert!(text.contains("does not reimplement"), "{bin}: {text}");
-        assert!(
-            text.contains("facet ncl check|export|apply"),
-            "{bin}: {text}"
-        );
+        assert!(text.contains("hedron-ncl"), "{bin}: {text}");
+        assert!(text.contains("in-process"), "{bin}: {text}");
     }
 }

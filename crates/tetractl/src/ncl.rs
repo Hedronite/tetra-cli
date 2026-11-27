@@ -25,12 +25,22 @@ pub enum Verb {
     Eval,
 }
 
+#[derive(Debug)]
 pub struct Request {
     pub path: PathBuf,
     pub json: bool,
     pub quiet: bool,
     pub overrides: Vec<String>,
     pub import_path: Option<PathBuf>,
+}
+
+struct Tokens {
+    json: bool,
+    quiet: bool,
+    frozen: u8,
+    vars: Vec<String>,
+    imports: Vec<String>,
+    positionals: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -50,21 +60,49 @@ struct FailBody {
 
 /// Parse forwarded check/eval args. `--json` / `-q` are stripped first (Facet).
 pub fn parse(args: &[String], json_from_cli: bool, verb: Verb) -> Result<Request, CliError> {
+    let tokens = collect_tokens(args, json_from_cli)?;
+    if tokens.positionals.len() != 1 {
+        return Err(fail_msg(
+            INVALID_ARGUMENTS,
+            "ncl requires <path> to a .ncl module",
+        ));
+    }
+    let overrides = check_vars(&tokens.vars)?;
+    let import_path = resolve_imports(&tokens.imports)?;
+    if tokens.frozen > 0 {
+        return Err(freeze_error(verb));
+    }
+    Ok(Request {
+        path: PathBuf::from(&tokens.positionals[0]),
+        json: tokens.json,
+        quiet: tokens.quiet,
+        overrides,
+        import_path,
+    })
+}
+
+fn collect_tokens(args: &[String], json_from_cli: bool) -> Result<Tokens, CliError> {
     let (json, quiet, rest) = strip_globals(args, json_from_cli)?;
-    let mut frozen = false;
-    let mut overrides = Vec::new();
-    let mut import_path: Option<String> = None;
+    let mut frozen: u8 = 0;
+    let mut vars = Vec::new();
+    let mut imports = Vec::new();
     let mut positionals = Vec::new();
     let mut i = 0;
     while i < rest.len() {
         let a = rest[i].as_str();
         if a == "--frozen" {
-            frozen = true;
+            frozen = frozen.saturating_add(1);
+            if frozen > 1 {
+                return Err(fail_msg(
+                    INVALID_ARGUMENTS,
+                    "--frozen may only be specified once",
+                ));
+            }
             i += 1;
             continue;
         }
         if let Some(v) = eq_value(a, "--var") {
-            push_var(&mut overrides, v)?;
+            vars.push(v.unwrap_or_default());
             i += 1;
             continue;
         }
@@ -73,14 +111,14 @@ pub fn parse(args: &[String], json_from_cli: bool, verb: Verb) -> Result<Request
             match rest.get(i) {
                 None => return Err(fail_msg(INVALID_ARGUMENTS, "--var requires a value")),
                 Some(v) => {
-                    push_var(&mut overrides, Some(v.clone()))?;
+                    vars.push(v.clone());
                     i += 1;
                     continue;
                 }
             }
         }
         if let Some(v) = eq_value(a, "--import-path") {
-            set_import(&mut import_path, v)?;
+            imports.push(v.unwrap_or_default());
             i += 1;
             continue;
         }
@@ -94,7 +132,7 @@ pub fn parse(args: &[String], json_from_cli: bool, verb: Verb) -> Result<Request
                     ))
                 }
                 Some(v) => {
-                    set_import(&mut import_path, Some(v.clone()))?;
+                    imports.push(v.clone());
                     i += 1;
                     continue;
                 }
@@ -107,21 +145,13 @@ pub fn parse(args: &[String], json_from_cli: bool, verb: Verb) -> Result<Request
         }
         return Err(fail_msg(INVALID_ARGUMENTS, format!("unknown option: {a}")));
     }
-    if frozen {
-        return Err(freeze_error(verb));
-    }
-    if positionals.len() != 1 {
-        return Err(fail_msg(
-            INVALID_ARGUMENTS,
-            "ncl requires <path> to a .ncl module",
-        ));
-    }
-    Ok(Request {
-        path: PathBuf::from(&positionals[0]),
+    Ok(Tokens {
         json,
         quiet,
-        overrides,
-        import_path: resolve_import(import_path)?,
+        frozen,
+        vars,
+        imports,
+        positionals,
     })
 }
 
@@ -156,7 +186,7 @@ fn strip_globals(
     if json && quiet {
         return Err(fail_msg(
             INVALID_ARGUMENTS,
-            "--json cannot be combined with --quiet",
+            "--json and --quiet cannot be used together",
         ));
     }
     Ok((json, quiet, rest))
@@ -180,61 +210,73 @@ fn eq_value(arg: &str, flag: &str) -> Option<Option<String>> {
         .map(|rest| Some(rest.to_owned()))
 }
 
-fn set_import(slot: &mut Option<String>, value: Option<String>) -> Result<(), CliError> {
-    let v = value.ok_or_else(|| fail_msg(INVALID_ARGUMENTS, "--import-path requires a value"))?;
-    if slot.is_some() {
+fn check_vars(raw: &[String]) -> Result<Vec<String>, CliError> {
+    for item in raw {
+        if !item.contains('=') {
+            return Err(fail_msg(
+                INVALID_ARGUMENTS,
+                format!("--var expects path.to.field=value, got \"{item}\""),
+            ));
+        }
+    }
+    for item in raw {
+        let path = item.split_once('=').map(|(p, _)| p).unwrap_or(item);
+        for seg in path.split('.') {
+            if SECRET_SEGMENTS.iter().any(|s| seg.eq_ignore_ascii_case(s)) {
+                return Err(fail_msg(
+                    INVALID_ARGUMENTS,
+                    format!(
+                        "refuses secret field override `{path}`; use secret_ref and Facet env hydration instead"
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(raw.to_vec())
+}
+
+fn resolve_imports(cli: &[String]) -> Result<Option<PathBuf>, CliError> {
+    if cli.len() > 1 {
         return Err(fail_msg(
             INVALID_ARGUMENTS,
             "--import-path may only be specified once",
         ));
     }
-    *slot = Some(v);
-    Ok(())
-}
-
-fn push_var(out: &mut Vec<String>, value: Option<String>) -> Result<(), CliError> {
-    let raw = value.ok_or_else(|| fail_msg(INVALID_ARGUMENTS, "--var requires a value"))?;
-    let Some((path, _)) = raw.split_once('=') else {
-        return Err(fail_msg(
-            INVALID_ARGUMENTS,
-            format!("--var expects path.to.field=value, got \"{raw}\""),
-        ));
-    };
-    for seg in path.split('.') {
-        if SECRET_SEGMENTS.iter().any(|s| seg.eq_ignore_ascii_case(s)) {
-            return Err(fail_msg(
-                INVALID_ARGUMENTS,
-                format!(
-                    "refuses secret field override `{path}`; use secret_ref and Facet env hydration instead"
-                ),
-            ));
-        }
+    match cli.first() {
+        None => resolve_import(None),
+        Some(raw) => resolve_import(Some(raw.as_str())),
     }
-    out.push(raw);
-    Ok(())
 }
 
-fn resolve_import(cli: Option<String>) -> Result<Option<PathBuf>, CliError> {
-    let chosen = cli
-        .filter(|s| !s.is_empty())
-        .or_else(|| nonempty_env("TETRA_NCL_IMPORT_PATH"))
-        .or_else(|| nonempty_env("FACET_NCL_IMPORT_PATH"));
-    let Some(raw) = chosen else {
-        return Ok(None);
+/// `None` = flag absent (env fallback). `Some("")` = CLI empty, suppress env.
+fn resolve_import(cli: Option<&str>) -> Result<Option<PathBuf>, CliError> {
+    let chosen = match cli {
+        Some("") => return Ok(None),
+        Some(raw) => raw.to_owned(),
+        None => match nonempty_env("TETRA_NCL_IMPORT_PATH")
+            .or_else(|| nonempty_env("FACET_NCL_IMPORT_PATH"))
+        {
+            Some(v) => v,
+            None => return Ok(None),
+        },
     };
-    let path = PathBuf::from(&raw);
+    let path = PathBuf::from(&chosen);
     if !path.is_dir() {
         return Err(fail_msg(
             INVALID_ARGUMENTS,
-            format!("--import-path {raw} is not a directory"),
+            format!("--import-path {chosen} is not a directory"),
         ));
     }
-    let drift =
-        hedron_ncl::pack::verify(&path).map_err(|e| fail_msg(INVALID_ARGUMENTS, e.to_string()))?;
+    let drift = hedron_ncl::pack::verify(&path).map_err(|e| {
+        fail_msg(
+            INVALID_ARGUMENTS,
+            format!("import path {chosen} is not a materialized pack: {e}"),
+        )
+    })?;
     if !drift.is_empty() {
         return Err(fail_msg(
             INVALID_ARGUMENTS,
-            format!("import path {raw} pack drift: {drift:?}"),
+            format!("import path {chosen} pack drift: {drift:?}"),
         ));
     }
     Ok(Some(path))
@@ -326,4 +368,154 @@ pub fn emit_ok_human(line: &str) -> Result<(), CliError> {
 /// Whether this arg list asked for JSON (global clap plus forwarded `--json`).
 pub fn wants_json(args: &[String], json_from_cli: bool) -> bool {
     json_from_cli || args.iter().any(|a| a == "--json")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn s(args: &[&str]) -> Vec<String> {
+        args.iter().map(|a| (*a).to_owned()).collect()
+    }
+
+    fn err_msg(args: &[&str], json: bool, verb: Verb) -> (u8, String) {
+        let e = parse(&s(args), json, verb).expect_err("expected parse error");
+        (e.code(), e.message().to_owned())
+    }
+
+    #[test]
+    fn b1_json_and_quiet_exact_text() {
+        let (code, msg) = err_msg(&["world.ncl", "--json", "-q"], false, Verb::Check);
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "--json and --quiet cannot be used together");
+        let (code, msg) = err_msg(&["world.ncl", "-q", "--json"], false, Verb::Check);
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "--json and --quiet cannot be used together");
+        let (code, msg) = err_msg(
+            &["world.ncl", "--import-path", "pack", "--json", "-q"],
+            false,
+            Verb::Eval,
+        );
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "--json and --quiet cannot be used together");
+    }
+
+    #[test]
+    fn b2_empty_cli_import_suppresses_env() {
+        let _g = ENV_LOCK.lock().unwrap();
+        env::set_var("FACET_NCL_IMPORT_PATH", "pack");
+        env::remove_var("TETRA_NCL_IMPORT_PATH");
+        let req = parse(
+            &s(&["tetra/world.ncl", "--import-path", "", "--json"]),
+            false,
+            Verb::Check,
+        )
+        .expect("empty CLI import is not an error");
+        assert!(
+            req.import_path.is_none(),
+            "empty CLI must not fall back to env"
+        );
+        let req = parse(
+            &s(&["tetra/world.ncl", "--import-path=", "--json"]),
+            false,
+            Verb::Check,
+        )
+        .expect("--import-path= is empty CLI");
+        assert!(req.import_path.is_none());
+        env::remove_var("FACET_NCL_IMPORT_PATH");
+    }
+
+    #[test]
+    fn b3_precedence_loop_then_positional_then_var_then_frozen() {
+        let (code, msg) = err_msg(&["--var", "noeq", "--nope", "--json"], false, Verb::Check);
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "unknown option: --nope");
+
+        let (code, msg) = err_msg(&["--frozen", "--json"], false, Verb::Check);
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "ncl requires <path> to a .ncl module");
+
+        let (code, msg) = err_msg(&["--frozen", "--json"], false, Verb::Eval);
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "ncl requires <path> to a .ncl module");
+
+        let (code, msg) = err_msg(&["--var", "noeq", "--json"], false, Verb::Check);
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "ncl requires <path> to a .ncl module");
+
+        let (code, msg) = err_msg(
+            &["--import-path", "pack", "--import-path", "pack", "--json"],
+            false,
+            Verb::Check,
+        );
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "ncl requires <path> to a .ncl module");
+
+        let (code, msg) = err_msg(
+            &[
+                "world.ncl",
+                "--import-path",
+                "pack",
+                "--var",
+                "calls.token=1",
+                "--var",
+                "noeq",
+                "--json",
+            ],
+            false,
+            Verb::Check,
+        );
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "--var expects path.to.field=value, got \"noeq\"");
+
+        let (code, msg) = err_msg(
+            &["world.ncl", "--frozen", "--frozen", "--json"],
+            false,
+            Verb::Eval,
+        );
+        assert_eq!(code, INVALID_ARGUMENTS);
+        assert_eq!(msg, "--frozen may only be specified once");
+    }
+
+    #[test]
+    fn b4_verify_err_uses_materialized_pack_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = dir.path().join("pack_unreadable");
+        fs::create_dir(&pack).unwrap();
+        let mut perms = fs::metadata(&pack).unwrap().permissions();
+        let world = dir.path().join("world.ncl");
+        fs::write(&world, "{}\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            perms.set_mode(0o000);
+            fs::set_permissions(&pack, perms).unwrap();
+        }
+        let args = s(&[
+            world.to_str().unwrap(),
+            "--import-path",
+            pack.to_str().unwrap(),
+            "--json",
+        ]);
+        let err = parse(&args, false, Verb::Check).expect_err("unreadable pack");
+        assert_eq!(err.code(), INVALID_ARGUMENTS);
+        let msg = err.message();
+        assert!(
+            msg.starts_with(&format!(
+                "import path {} is not a materialized pack: ",
+                pack.display()
+            )),
+            "got {msg}"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut p = fs::metadata(&pack).unwrap().permissions();
+            p.set_mode(0o755);
+            fs::set_permissions(&pack, p).unwrap();
+        }
+    }
 }

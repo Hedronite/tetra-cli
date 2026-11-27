@@ -2,7 +2,7 @@
 
 use std::io::{self, Write};
 
-use crate::cli::CliError;
+use crate::error::CliError;
 use crate::facet::{
     clear_session, current_session_id, exec, passthrough_json, stamp_session, FacetOutput,
 };

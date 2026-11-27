@@ -2,12 +2,15 @@ mod blame;
 mod cli;
 mod diff;
 mod doctor;
+mod error;
 mod facet;
 mod profile;
 mod session;
 mod status;
 
-pub use cli::CliError;
+pub use error::CliError;
+
+pub const SCHEMA_VERSION: u64 = 1;
 
 /// Binary name (`tetractl` or `tetra`) from argv0.
 pub fn bin_name() -> &'static str {

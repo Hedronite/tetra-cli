@@ -7,10 +7,11 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::cli::CliError;
-use crate::facet::{exec as facet_exec, export_json, passthrough_json, SCHEMA_VERSION};
+use crate::error::CliError;
+use crate::facet::{exec as facet_exec, export_json, passthrough_json};
 use crate::profile::ProfileStatus;
 use crate::status::StatusReport;
+use crate::SCHEMA_VERSION;
 
 pub const DRIFT_EXIT_CODE: u8 = 1;
 

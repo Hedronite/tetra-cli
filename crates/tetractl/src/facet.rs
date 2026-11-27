@@ -6,16 +6,14 @@ use std::process::{Command, Stdio};
 
 use serde_json::Value;
 
-use crate::cli::CliError;
+use crate::error::CliError;
+use crate::SCHEMA_VERSION;
 
 /// One lock for every unit test that mutates process environment variables
 /// (`FACET_BIN`, `TETRA_SESSION`, `FACET_SESSION`). Tests in different
 /// modules run on parallel threads and must serialize on the same lock.
 #[cfg(test)]
 pub(crate) static ENV_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-/// Facet JSON envelope version (must match `facet` / `probe-cli`).
-pub const SCHEMA_VERSION: u64 = 1;
 
 /// Environment variable naming the Facet binary (default `facet` on PATH).
 pub const FACET_BIN_ENV: &str = "FACET_BIN";

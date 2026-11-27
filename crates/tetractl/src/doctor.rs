@@ -15,9 +15,10 @@ use std::process::Command;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::cli::CliError;
-use crate::facet::{facet_bin, SCHEMA_VERSION};
+use crate::error::CliError;
+use crate::facet::facet_bin;
 use crate::profile::{env_configured, env_is_set, ProfileStatus};
+use crate::SCHEMA_VERSION;
 
 /// Exit code when the engine is unusable (facet unreachable, or no ncl/pack).
 /// Never a silent pass.
@@ -162,6 +163,43 @@ impl DoctorReport {
         reject_secret_fields(&value)?;
         Ok(value)
     }
+
+    pub fn print_human(&self) {
+        println!("tetractl doctor");
+        println!(
+            "capabilities: ncl={} pack={}",
+            status_word(self.capabilities.ncl),
+            status_word(self.capabilities.pack)
+        );
+        println!("cluster.profile: {}", profile_word(self.cluster.profile));
+        println!("intent.profile: {}", profile_word(self.intent.profile));
+        println!(
+            "facet: {} ({})",
+            self.facet.bin,
+            if self.facet.reachable {
+                "reachable"
+            } else {
+                "missing"
+            }
+        );
+        println!(
+            "pack: {} at {}{}",
+            self.pack.contract_set.as_deref().unwrap_or("-"),
+            self.pack
+                .import_path
+                .as_deref()
+                .unwrap_or("(not materialized)"),
+            if self.pack.contract_set.is_some() && !self.pack.marker_matches {
+                " (marker MISMATCH)"
+            } else {
+                ""
+            }
+        );
+        println!("host law: {HOST_LAW}");
+        for problem in &self.problems {
+            println!("problem: {problem}");
+        }
+    }
 }
 
 pub fn run(json: bool, materialize: bool) -> Result<(), CliError> {
@@ -179,7 +217,7 @@ pub fn run(json: bool, materialize: bool) -> Result<(), CliError> {
         io::stdout().write_all(&bytes).ok();
         println!();
     } else {
-        print_human(&report);
+        report.print_human();
     }
     if report.engine_ok() {
         Ok(())
@@ -291,44 +329,6 @@ fn env_is_file(name: &str) -> bool {
     std::env::var_os(name)
         .map(PathBuf::from)
         .is_some_and(|path| fs::metadata(path).map(|m| m.is_file()).unwrap_or(false))
-}
-
-fn print_human(report: &DoctorReport) {
-    println!("tetractl doctor");
-    println!(
-        "capabilities: ncl={} pack={}",
-        status_word(report.capabilities.ncl),
-        status_word(report.capabilities.pack)
-    );
-    println!("cluster.profile: {}", profile_word(report.cluster.profile));
-    println!("intent.profile: {}", profile_word(report.intent.profile));
-    println!(
-        "facet: {} ({})",
-        report.facet.bin,
-        if report.facet.reachable {
-            "reachable"
-        } else {
-            "missing"
-        }
-    );
-    println!(
-        "pack: {} at {}{}",
-        report.pack.contract_set.as_deref().unwrap_or("-"),
-        report
-            .pack
-            .import_path
-            .as_deref()
-            .unwrap_or("(not materialized)"),
-        if report.pack.contract_set.is_some() && !report.pack.marker_matches {
-            " (marker MISMATCH)"
-        } else {
-            ""
-        }
-    );
-    println!("host law: {HOST_LAW}");
-    for problem in &report.problems {
-        println!("problem: {problem}");
-    }
 }
 
 fn status_word(ok: bool) -> &'static str {

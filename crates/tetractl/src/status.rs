@@ -8,12 +8,13 @@ use std::process::{Command, Stdio};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::cli::CliError;
-use crate::facet::{exec as facet_exec, export_json, passthrough_json, SCHEMA_VERSION};
+use crate::error::CliError;
+use crate::facet::{exec as facet_exec, export_json, passthrough_json};
 use crate::profile::{
     env_configured, hedron_bin, kubectl_bin, ProfileStatus, FACET_HEDRON_DB_ENV,
     FACET_KUBECONFIG_ENV,
 };
+use crate::SCHEMA_VERSION;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct NamedObject {

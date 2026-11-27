@@ -31,26 +31,26 @@
 
 ---
 
-**Tetra** is a verbiage wrapper. Operators and agents type `tetractl`, not `facet ncl` + `hedron` HQL + `kubectl`. Facet still embeds Nickel. HedronDB still records intent. h3s + kubectl still own Ready. Tetra fills the gaps those engines do not have: `doctor`, `session`, `status`, `diff`, `blame`.
+**Tetra** hosts the platform's only Nickel VM through `hedron-ncl`. Operators and agents type `tetractl`, not `facet ncl` + `hedron` HQL + `kubectl`. `check`, `eval`, `pack`, and `gen` run in-process. `apply` still hands off to Facet. HedronDB still records intent. h3s + kubectl still own Ready. Tetra also fills `doctor`, `session`, `status`, `diff`, and `blame`.
 
 ```
 tetra      — the binary
 tetractl   — the kubectl-shaped alias of that same binary
 ```
 
-It is not a second Nickel VM, not a kubectl clone, and not an MCP server (yet).
+It is the Nickel VM host, not a kubectl clone, and not an MCP server (yet).
 
 | | Pin |
 |---|---|
 | Binary | `tetractl` / `tetra` ([`tetractl`](https://crates.io/crates/tetractl) 0.0.1) |
-| Nickel host | Facet crate [`hedron-ncl`](https://crates.io/crates/hedron-ncl) — **not** this repo |
+| Nickel host | this repo, `crates/hedron-ncl` (`k8s-1.34-h3s-0.9.1`) |
 | Lattice history | [`facet-lattice`](https://crates.io/crates/facet-lattice) — different axis; there is no `facet-ncl` |
 | MSRV | 1.83 |
 | License | [Apache-2.0](LICENSE) |
 
 ## Quick start
 
-Rust **1.83+**. `facet` must be on `PATH` for wrap verbs (`check` / `eval` / `apply`). `hedron` and `kubectl` are optional until you ask for intent or cluster.
+Rust **1.95**. `check` / `eval` / `pack` / `gen` run in-process. `facet` must be on `PATH` (or `FACET_BIN`) for `apply` / `session` / observe. `hedron` and `kubectl` are optional until you ask for intent or cluster.
 
 ```sh
 cargo install tetractl
@@ -68,7 +68,7 @@ tetractl diff   worlds/prod.ncl
 tetractl blame  '<Status JSON or kubectl stderr>'
 ```
 
-`TETRA_SESSION` is a Facet session ULID (`FACET_SESSION`). `--json` emits Facet JSON (`schemaVersion: 1`). Extra flags after the world path are forwarded to `facet ncl`.
+`TETRA_SESSION` is a Facet session ULID (`FACET_SESSION`). `--json` emits Facet JSON (`schemaVersion: 1`). Extra flags after the world path (`--var`, `--import-path`, …) are parsed in-process for check/eval; apply still forwards to Facet.
 
 crates.io name `tetra` is a game framework. Install **`tetractl`**. Both bins come from that crate.
 
@@ -76,18 +76,19 @@ crates.io name `tetra` is a game framework. Install **`tetractl`**. Both bins co
 
 | You type | Engine |
 |---|---|
-| `tetractl check` / `eval` / `apply` | `facet ncl check` / `export` / `apply` |
+| `tetractl check` / `eval` / `pack` / `gen` | in-process `hedron-ncl` |
+| `tetractl apply` | `facet ncl apply` |
 | intent status of names | HedronDB HQL |
 | cluster get / Ready | `kubectl` on the host that has kubeconfig |
 | `doctor` `session` `status` `diff` `blame` | Tetra only |
 
-`facet ncl` remains the engine CLI for debug. Hash and exit parity with that surface is the wrap contract.
+`facet ncl` remains the engine CLI for apply and for debug. Hash and exit parity with `facet ncl check|export|pack` is the contract.
 
 ### What you do not get
 
 | Claim | Reality |
 |---|---|
-| A second Nickel VM | No `nickel-lang-core` / `hedron-ncl` in this lockfile |
+| A second Nickel VM | `Cargo.lock` has exactly one `nickel-lang-core` and one `hedron-ncl`; zero `rusqlite` |
 | `tetra` exit 0 ⇒ Pod Ready | Ready is `kubectl get -o json` on the kubeconfig host |
 | `tetra mcp` | Not shipped |
 | Tokens in `.ncl` | Forbidden. Runtime ids stay out of desired state |
@@ -95,10 +96,10 @@ crates.io name `tetra` is a game framework. Install **`tetractl`**. Both bins co
 
 ## How it works
 
-One rule: **Nickel is the world language; tetractl names the engines; it does not reimplement them.**
+One rule: **Nickel is the world language; Tetra hosts the VM; apply still names Facet.**
 
 - Desired state lives in `worlds/<vault>.ncl` (`{ cluster, intent, calls } \| World`).
-- `tetractl check|eval|apply` execs `facet ncl *` (`FACET_BIN`, default `facet`).
+- `tetractl check|eval|pack|gen` run in-process. `tetractl apply` execs `facet ncl apply` (`FACET_BIN`, default `facet`).
 - `tetractl session start|end` wraps `facet session`. The ULID is the join key.
 - `tetractl status` reads the three engines by **names**. `diff` is desired export vs that status (exit 1 on drift). `blame` parses admission errors and never evals Nickel.
 - `tetractl doctor` is capability + host law. It never prints secrets.
@@ -113,20 +114,18 @@ src/
 
 ## Status
 
-Workspace **0.0.1** matches crates.io [`tetractl`](https://crates.io/crates/tetractl). M1 verbs (`doctor`, `session`, wrap, `status`, `diff`, `blame`) are in this tree. Shape canon lives in the Atrium vault: `foundry/tetra-cli/SHAPE.md`.
-
-There is no GitHub Actions workflow in this repo yet. Do not claim a CI badge or a `v0.1.0` tag until Evan GO.
+Workspace **0.0.1** matches crates.io [`tetractl`](https://crates.io/crates/tetractl). M1 verbs plus in-process `check` / `eval` / `pack` / `gen` are in this tree. CI is `.github/workflows/rust-tops.yml`.
 
 ## Contributing
 
-Issues and pull requests are welcome. Start with [AGENTS.md](AGENTS.md). Match the wrap law: no second VM, no tokens in Nickel, no invented query language.
+Issues and pull requests are welcome. Start with [AGENTS.md](AGENTS.md). One Nickel VM via `hedron-ncl`, no tokens in Nickel, no invented query language.
 
 ```sh
 cargo test --locked
 cargo clippy --all-targets -- -D warnings
 ```
 
-Rust **1.83**.
+Rust **1.95**.
 
 ## Credits and license
 

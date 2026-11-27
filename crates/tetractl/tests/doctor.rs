@@ -16,6 +16,11 @@ fn doctor(cwd: &Path, extra: &[(&str, &str)], args: &[&str]) -> Output {
     cmd.env_clear();
     cmd.env("PATH", std::env::var_os("PATH").unwrap_or_default());
     cmd.env("HOME", cwd);
+    cmd.env("FACET_CONFIG_DIR", cwd.join("facetcfg"));
+    let _ = std::fs::create_dir_all(cwd.join("facetcfg"));
+    cmd.env_remove("FACET_NO_RECORD");
+    cmd.env_remove("FACET_NCL_IMPORT_PATH");
+    cmd.env_remove("TETRA_NCL_IMPORT_PATH");
     if let Some(bin) = std::env::var_os("FACET_BIN") {
         cmd.env("FACET_BIN", bin);
     }
@@ -76,6 +81,9 @@ fn castle_like_host_has_engine_pack_and_host_law_but_no_profiles() {
     let mut check = Command::new(env!("CARGO_BIN_EXE_tetractl"));
     check
         .args(["check", "world.ncl", "--import-path", &import_path])
+        .env("HOME", dir.path())
+        .env("FACET_CONFIG_DIR", dir.path().join("facetcfg"))
+        .env_remove("FACET_NO_RECORD")
         .current_dir(dir.path());
     if let Some(bin) = std::env::var_os("FACET_BIN") {
         check.env("FACET_BIN", bin);

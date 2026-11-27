@@ -93,7 +93,7 @@ pub fn normalize(bytes: &[u8], root: &Path) -> Vec<u8> {
     replace_closures(&s).into_bytes()
 }
 
-fn replace_closures(s: &str) -> String {
+pub fn replace_closures(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
     while let Some(i) = rest.find("%<closure@0x") {

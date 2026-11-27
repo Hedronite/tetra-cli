@@ -8,13 +8,14 @@
 //!
 //! D4 clap-owned cases **exempt** from Facet byte parity (clap, not the ncl
 //! parser, owns them):
-//! - no path (`tetractl check` / `eval` with no module)
 //! - `--json` twice as a clap global bool (`tetractl --json --json …`)
 //! - bare / unknown subcommand (`tetractl`, `tetractl recon`)
 //! - `--version`
 //!
-//! Every other clap-pass-through flag (`--var`, `--import-path`, `-q`,
-//! `--frozen`, unknown options) is compared byte-for-byte.
+//! No-path `check`/`eval` is **not** clap-owned since G1: it reaches the
+//! in-process parser and is compared. Every other clap-pass-through flag
+//! (`--var`, `--import-path`, `-q`, `--frozen`, unknown options) is compared
+//! byte-for-byte.
 
 mod common;
 
@@ -775,16 +776,328 @@ fn offline_check_eval_pack_gen_doctor_without_facet() {
         assert!(!text.contains("hedron_ncl::"));
     }
     let doctor = run(&["doctor", "--json"]);
+    assert_eq!(
+        doctor.status.code(),
+        Some(5),
+        "doctor without Facet is exit 5 (apply/session still need it): {}{}",
+        String::from_utf8_lossy(&doctor.stdout),
+        String::from_utf8_lossy(&doctor.stderr)
+    );
+    let v: serde_json::Value = serde_json::from_slice(&doctor.stdout).expect("doctor json");
+    assert_eq!(v["capabilities"]["ncl"], true);
+    assert_eq!(v["capabilities"]["pack"], true);
     assert!(
         w.root
             .join(".tetra/pack/k8s-1.34-h3s-0.9.1/hedron-ncl/platform.ncl")
             .is_file(),
-        "doctor materializes pack without FACET_BIN; doctor exit {:?}",
-        doctor.status.code()
+        "doctor materializes pack without FACET_BIN"
     );
 }
 
 fn json_sha(out: &Output) -> String {
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("gen --json");
     v["sha256"].as_str().unwrap().to_owned()
+}
+
+#[test]
+fn replace_closures_normalizes_nickel_addresses() {
+    assert_eq!(
+        common::replace_closures("err %<closure@0xabc123> more %<closure@0x0> end"),
+        "err %<closure@ADDR> more %<closure@ADDR> end"
+    );
+    assert_eq!(common::replace_closures("no closures"), "no closures");
+}
+
+#[test]
+fn live_g1_blockers_human_eval_and_forms() {
+    let _facet = require_facet();
+    let w = World::new();
+    let pack = "pack";
+
+    // G1-B3: parse-loop / positional / --var / --frozen order.
+    cmp(
+        &w,
+        "B3 check --frozen no path",
+        &["check", "--frozen", "--json"],
+        &["ncl", "check", "--frozen", "--json"],
+        &[],
+    );
+    cmp(
+        &w,
+        "B3 eval --frozen no path",
+        &["eval", "--frozen", "--json"],
+        &["ncl", "export", "--frozen", "--json"],
+        &[],
+    );
+    cmp(
+        &w,
+        "B3 eval --frozen twice",
+        &[
+            "eval",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--frozen",
+            "--frozen",
+            "--json",
+        ],
+        &[
+            "ncl",
+            "export",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--frozen",
+            "--frozen",
+            "--json",
+        ],
+        &[],
+    );
+    cmp(
+        &w,
+        "B3 --var noeq --nope",
+        &["check", "--var", "noeq", "--nope", "--json"],
+        &["ncl", "check", "--var", "noeq", "--nope", "--json"],
+        &[],
+    );
+    cmp(
+        &w,
+        "B3 secret --var then noeq",
+        &[
+            "check",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--var",
+            "calls.token=1",
+            "--var",
+            "noeq",
+            "--json",
+        ],
+        &[
+            "ncl",
+            "check",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--var",
+            "calls.token=1",
+            "--var",
+            "noeq",
+            "--json",
+        ],
+        &[],
+    );
+    cmp(
+        &w,
+        "B3 --var noeq no path",
+        &["check", "--var", "noeq", "--json"],
+        &["ncl", "check", "--var", "noeq", "--json"],
+        &[],
+    );
+    cmp(
+        &w,
+        "B3 import-path twice no path",
+        &[
+            "check",
+            "--import-path",
+            pack,
+            "--import-path",
+            pack,
+            "--json",
+        ],
+        &[
+            "ncl",
+            "check",
+            "--import-path",
+            pack,
+            "--import-path",
+            pack,
+            "--json",
+        ],
+        &[],
+    );
+
+    // G1-B4: unreadable pack -> materialized-pack prefix.
+    let unread = w.root.join("pack_unreadable");
+    copy_tree(&w.root.join("pack"), &unread);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&unread).unwrap().permissions();
+        perms.set_mode(0o000);
+        fs::set_permissions(&unread, perms).unwrap();
+    }
+    cmp(
+        &w,
+        "B4 unreadable pack",
+        &[
+            "check",
+            "tetra/world.ncl",
+            "--import-path",
+            "pack_unreadable",
+            "--json",
+        ],
+        &[
+            "ncl",
+            "check",
+            "tetra/world.ncl",
+            "--import-path",
+            "pack_unreadable",
+            "--json",
+        ],
+        &[],
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&unread).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&unread, perms).unwrap();
+    }
+
+    // Human eval (kills M8).
+    cmp(
+        &w,
+        "eval human",
+        &["eval", "tetra/world.ncl", "--import-path", pack],
+        &["ncl", "export", "tetra/world.ncl", "--import-path", pack],
+        &[],
+    );
+    cmp(
+        &w,
+        "eval human --var",
+        &[
+            "eval",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--var",
+            "calls.info.name=\"overridden\"",
+        ],
+        &[
+            "ncl",
+            "export",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--var",
+            "calls.info.name=\"overridden\"",
+        ],
+        &[],
+    );
+
+    // Closure addresses (G1 N4).
+    cmp(
+        &w,
+        "eval scalar --var x=1 (closures)",
+        &["eval", "scalar.ncl", "--var", "x=1", "--json"],
+        &["ncl", "export", "scalar.ncl", "--var", "x=1", "--json"],
+        &[],
+    );
+
+    // eval --frozen with a path.
+    cmp(
+        &w,
+        "eval --frozen with path",
+        &[
+            "eval",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--frozen",
+            "--json",
+        ],
+        &[
+            "ncl",
+            "export",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--frozen",
+            "--json",
+        ],
+        &[],
+    );
+
+    // TETRA_NCL_IMPORT_PATH is Tetra-only and wins over FACET_NCL_IMPORT_PATH (D2).
+    let t = tetra_env(
+        &w,
+        &["check", "tetra/world.ncl", "--json"],
+        &[
+            ("TETRA_NCL_IMPORT_PATH", Some(pack)),
+            ("FACET_NCL_IMPORT_PATH", Some("pack_drift")),
+        ],
+    );
+    assert_eq!(
+        t.status.code(),
+        Some(0),
+        "TETRA import path must beat FACET_NCL_IMPORT_PATH: {}{}",
+        String::from_utf8_lossy(&t.stdout),
+        String::from_utf8_lossy(&t.stderr)
+    );
+    // CLI --import-path still beats TETRA (and is comparable to facet).
+    cmp(
+        &w,
+        "CLI import-path beats TETRA env",
+        &["check", "tetra/world.ncl", "--import-path", pack, "--json"],
+        &[
+            "ncl",
+            "check",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--json",
+        ],
+        &[("TETRA_NCL_IMPORT_PATH", Some("pack_drift"))],
+    );
+
+    // --var= / --import-path= forms.
+    cmp(
+        &w,
+        "equals-form flags",
+        &[
+            "eval",
+            "tetra/world.ncl",
+            "--import-path=pack",
+            "--var=calls.info.name=\"eq\"",
+            "--json",
+        ],
+        &[
+            "ncl",
+            "export",
+            "tetra/world.ncl",
+            "--import-path=pack",
+            "--var=calls.info.name=\"eq\"",
+            "--json",
+        ],
+        &[],
+    );
+
+    // Absolute path.
+    let abs = w.root.join("tetra/world.ncl");
+    let abs_s = abs.to_str().unwrap();
+    cmp(
+        &w,
+        "absolute path eval",
+        &["eval", abs_s, "--import-path", pack, "--json"],
+        &["ncl", "export", abs_s, "--import-path", pack, "--json"],
+        &[],
+    );
+
+    // No-path (not clap-owned since G1).
+    cmp(
+        &w,
+        "check no path",
+        &["check", "--json"],
+        &["ncl", "check", "--json"],
+        &[],
+    );
+    cmp(
+        &w,
+        "eval no path",
+        &["eval", "--json"],
+        &["ncl", "export", "--json"],
+        &[],
+    );
 }

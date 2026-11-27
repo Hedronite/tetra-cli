@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://crates.io/crates/tetractl"><img src="https://img.shields.io/crates/v/tetractl?style=flat&colorA=0A0A0A&colorB=1A9B9B" alt="tetractl on crates.io"></a>
-  <a href="https://rustup.rs"><img src="https://img.shields.io/badge/Rust-1.83-F46623?style=flat&colorA=0A0A0A&logo=rust&logoColor=white" alt="Rust 1.83"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-1A9B9B?style=flat&colorA=0A0A0A" alt="Apache-2.0 license"></a>
+  <a href="https://rustup.rs"><img src="https://img.shields.io/badge/Rust-1.95-F46623?style=flat&colorA=0A0A0A&logo=rust&logoColor=white" alt="Rust 1.95"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-1A9B9B?style=flat&colorA=0A0A0A" alt="MIT OR Apache-2.0 license"></a>
 </p>
 
 <p align="center">
@@ -45,8 +45,8 @@ It is the Nickel VM host, not a kubectl clone, and not an MCP server (yet).
 | Binary | `tetractl` / `tetra` ([`tetractl`](https://crates.io/crates/tetractl) 0.0.1) |
 | Nickel host | this repo, `crates/hedron-ncl` (`k8s-1.34-h3s-0.9.1`) |
 | Lattice history | [`facet-lattice`](https://crates.io/crates/facet-lattice) — different axis; there is no `facet-ncl` |
-| MSRV | 1.83 |
-| License | [Apache-2.0](LICENSE) |
+| MSRV | 1.95 |
+| License | tetractl [Apache-2.0](LICENSE); hedron-ncl MIT OR Apache-2.0 ([LICENSE-MIT](LICENSE-MIT)) |
 
 ## Quick start
 
@@ -105,11 +105,10 @@ One rule: **Nickel is the world language; Tetra hosts the VM; apply still names 
 - `tetractl doctor` is capability + host law. It never prints secrets.
 
 ```
-src/
-  main.rs      # bins tetractl + tetra
-  cli.rs       # clap surface
-  facet.rs     # wrap
+crates/tetractl/src/   # bins tetractl + tetra, clap, wrap apply
+  ncl.rs eval.rs pack.rs gen.rs
   doctor.rs session.rs status.rs diff.rs blame.rs
+crates/hedron-ncl/     # the Nickel VM (MIT OR Apache-2.0)
 ```
 
 ## Status
@@ -129,4 +128,4 @@ Rust **1.95**.
 
 ## Credits and license
 
-Tetra is built and maintained by [Hedronite](https://hedronite.com). Apache-2.0 — see [LICENSE](LICENSE). The Tetra name is Hedronite's.
+Tetra is built and maintained by [Hedronite](https://hedronite.com). tetractl is Apache-2.0 ([LICENSE](LICENSE)); hedron-ncl is MIT OR Apache-2.0 ([LICENSE-MIT](LICENSE-MIT)). The Tetra name is Hedronite's.

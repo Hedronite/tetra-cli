@@ -415,7 +415,16 @@ mod tests {
         std::env::set_var(crate::facet::FACET_BIN_ENV, script);
 
         let world = dir.path().join("world.ncl");
-        fs::write(&world, "export").unwrap();
+        fs::write(
+            &world,
+            r#"{
+  cluster = [{ apiVersion = "v1", kind = "Pod", metadata = { name = "supported-pod" } }],
+  intent = [{ name = "tetra-g1-docs-eod" }],
+  calls = { info = { name = "tetra-g1-fixture" } }
+}
+"#,
+        )
+        .unwrap();
         let report = StatusReport::collect(&world, &[]).unwrap();
         assert_eq!(report.intent.profile, ProfileStatus::Missing);
         assert_eq!(report.intent.items, Value::String("n/a".into()));

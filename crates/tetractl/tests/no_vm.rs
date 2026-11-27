@@ -25,8 +25,8 @@ fn lockfile_has_expected_vm_boundary() {
     let manifest =
         fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("tetractl Cargo.toml");
     assert!(
-        !manifest.contains("hedron-ncl"),
-        "crates/tetractl/Cargo.toml must not list hedron-ncl"
+        manifest.contains("hedron-ncl"),
+        "crates/tetractl/Cargo.toml must list hedron-ncl"
     );
     assert!(
         !manifest.contains("nickel-lang-core"),

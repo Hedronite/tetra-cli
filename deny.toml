@@ -29,9 +29,29 @@ allow = [
   "Unicode-DFS-2016",
   "CC0-1.0",
   "MPL-2.0",
-  # nickel-lang-core 0.18 pulls malachite 0.9.2 (LGPL-3.0-only). Same pin as Facet 0.8.1.
-  "LGPL-3.0-only",
 ]
+
+# nickel-lang-core 0.18 depends on malachite 0.9 (LGPL-3.0-only). Scoped so the
+# workspace does not globally allow LGPL-3.0-only.
+[[licenses.exceptions]]
+name = "malachite"
+allow = ["LGPL-3.0-only"]
+
+[[licenses.exceptions]]
+name = "malachite-base"
+allow = ["LGPL-3.0-only"]
+
+[[licenses.exceptions]]
+name = "malachite-nz"
+allow = ["LGPL-3.0-only"]
+
+[[licenses.exceptions]]
+name = "malachite-q"
+allow = ["LGPL-3.0-only"]
+
+[[licenses.exceptions]]
+name = "malachite-float"
+allow = ["LGPL-3.0-only"]
 
 [bans]
 multiple-versions = "allow"

@@ -38,18 +38,15 @@ pub struct Cli {
 enum Command {
     /// Parse and typecheck a Nickel world module (wraps `facet ncl check`).
     Check {
-        /// Path to a .ncl module.
-        path: PathBuf,
-        /// Extra flags forwarded to facet (`--var`, `--import-path`, …).
+        /// Path, then `--var` / `--import-path` / `--json` / `-q`.
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
+        args: Vec<String>,
     },
-    /// Export a Nickel world module (wraps `facet ncl export`).
+    /// Export a Nickel world module in-process via hedron-ncl.
     Eval {
-        /// Path to a .ncl module.
-        path: PathBuf,
+        /// Path, then `--var` / `--import-path` / `--json` / `-q`.
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
+        args: Vec<String>,
     },
     /// Apply a Nickel world module (wraps `facet ncl apply`).
     Apply {
@@ -119,8 +116,8 @@ pub fn execute(invoked_as: &str) -> Result<(), CliError> {
             println!();
             Ok(())
         }
-        Some(Command::Check { path, rest }) => facet::run("check", &path, &rest, cli.json),
-        Some(Command::Eval { path, rest }) => facet::run("export", &path, &rest, cli.json),
+        Some(Command::Check { args }) => crate::eval::run(crate::ncl::Verb::Check, &args, cli.json),
+        Some(Command::Eval { args }) => crate::eval::run(crate::ncl::Verb::Eval, &args, cli.json),
         Some(Command::Apply { path, rest }) => facet::run("apply", &path, &rest, cli.json),
         Some(Command::Doctor { no_materialize }) => crate::doctor::run(cli.json, !no_materialize),
         Some(Command::Status { path, rest }) => {

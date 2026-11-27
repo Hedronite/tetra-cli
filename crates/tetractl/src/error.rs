@@ -21,6 +21,14 @@ impl CliError {
         }
     }
 
+    pub fn code(&self) -> u8 {
+        self.code
+    }
+
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
     pub fn exit(self) -> ExitCode {
         if !self.message.is_empty() {
             eprintln!("{}", self.message);

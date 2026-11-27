@@ -1,8 +1,8 @@
 use std::path::PathBuf;
-use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
 
+use crate::error::CliError;
 use crate::{facet, session};
 
 pub const WRAP_ABOUT: &str =
@@ -107,35 +107,6 @@ enum SessionCommand {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         rest: Vec<String>,
     },
-}
-
-#[derive(Debug)]
-pub struct CliError {
-    message: String,
-    code: u8,
-}
-
-impl CliError {
-    pub fn usage(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            code: 2,
-        }
-    }
-
-    pub fn engine(message: impl Into<String>, code: u8) -> Self {
-        Self {
-            message: message.into(),
-            code,
-        }
-    }
-
-    pub fn exit(self) -> ExitCode {
-        if !self.message.is_empty() {
-            eprintln!("{}", self.message);
-        }
-        ExitCode::from(self.code)
-    }
 }
 
 pub fn execute(invoked_as: &str) -> Result<(), CliError> {

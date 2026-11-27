@@ -132,6 +132,16 @@ pub fn eval_export(name: &str, source: &str) -> Result<serde_json::Value, Error>
     export(Input::Text { name, source }, &[], &[])
 }
 
+/// The `id` field of the embedded overlay, as evaluated by the VM. Must equal
+/// [`crate::overlay::CONTRACT_SET`]; `tests/overlay.rs` pins that.
+pub fn contract_set_id() -> Result<String, Error> {
+    let v = eval_export("overlay", crate::overlay::OVERLAY_NCL)?;
+    v.get("id")
+        .and_then(|id| id.as_str())
+        .map(str::to_owned)
+        .ok_or_else(|| Error::Export("overlay has no string `id` field".into()))
+}
+
 /// Like [`eval_export`], with `platform` and `overlay` bound in scope
 /// (see [`crate::overlay::prelude`]).
 pub fn eval_export_with_prelude(name: &str, body: &str) -> Result<serde_json::Value, Error> {

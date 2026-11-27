@@ -8,8 +8,8 @@ use std::path::Path;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::cli::CliError;
-use crate::facet::SCHEMA_VERSION;
+use crate::error::CliError;
+use crate::SCHEMA_VERSION;
 
 /// Classified admission refusal (G4a parse + G4b layer/owner).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

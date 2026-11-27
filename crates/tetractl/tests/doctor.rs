@@ -158,13 +158,16 @@ fn missing_engine_is_reported_and_exits_five() {
     assert_eq!(out.status.code(), Some(5));
     let v = json(&out);
     assert_eq!(v["facet"]["reachable"], false);
-    assert_eq!(v["capabilities"]["ncl"], false);
-    assert_eq!(v["capabilities"]["pack"], false);
-    assert_eq!(v["pack"]["materialized"], false);
+    assert_eq!(v["capabilities"]["ncl"], true);
+    assert_eq!(v["capabilities"]["pack"], true);
+    assert_eq!(v["pack"]["materialized"], true);
+    assert_eq!(v["pack"]["contractSet"], "k8s-1.34-h3s-0.9.1");
     assert!(v["problems"][0].as_str().unwrap().contains("FACET_BIN"));
     assert!(
-        !dir.path().join(".tetra").exists(),
-        "no pack without an engine"
+        dir.path()
+            .join(".tetra/pack/k8s-1.34-h3s-0.9.1/hedron-ncl/platform.ncl")
+            .is_file(),
+        "doctor materializes the pack without FACET_BIN"
     );
     let human = doctor(dir.path(), &[("FACET_BIN", "/nonexistent/facet")], &[]);
     assert_eq!(human.status.code(), Some(5));

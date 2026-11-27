@@ -6,16 +6,16 @@ use crate::error::CliError;
 use crate::{facet, session};
 
 pub const WRAP_ABOUT: &str =
-    "World command for the Hedronite platform — a verbiage wrapper, not a second Nickel VM.";
+    "World command for the Hedronite platform. Tetra hosts the only Nickel VM.";
 
 pub const WRAP_LONG_ABOUT: &str = "\
 Nickel is the language. tetractl (and the tetra binary alias) is the world command.
 
-Tetractl wraps Facet, HedronDB, and kubectl as they are. It does not reimplement eval, \
-put, admission, or Lattice history. facet ncl check|export|apply remains the engine; \
-tetractl check|eval|apply execs that surface.
+Tetra hosts the platform's only Nickel VM through hedron-ncl. check, eval, pack, and gen \
+run in-process. apply still hands off to Facet. Tetra does not open Lattice.
 
-Tetra does not embed nickel-lang-core or hedron-ncl. There is no second VM.";
+Cargo.lock carries exactly one nickel-lang-core, exactly one hedron-ncl, and zero rusqlite. \
+gen emits embedded plain-Rust templates keyed to CONTRACT_SET, not overlay-derived code.";
 
 #[derive(Parser, Debug)]
 #[command(
@@ -36,7 +36,7 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Parse and typecheck a Nickel world module (wraps `facet ncl check`).
+    /// Parse and typecheck a Nickel world module in-process.
     Check {
         /// Path, then `--var` / `--import-path` / `--json` / `-q`.
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -48,7 +48,19 @@ enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
-    /// Apply a Nickel world module (wraps `facet ncl apply`).
+    /// Write the embedded hedron-ncl pack under `--out`.
+    Pack {
+        /// `--out <dir>`, `--json`, `-q`.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Emit an embedded plain-Rust template keyed to CONTRACT_SET.
+    Gen {
+        /// `pod-profile` or `docs-eod`, then `--out` / `--check` / `--json`.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Apply a Nickel world module (hands off to `facet ncl apply`).
     Apply {
         /// Path to a .ncl module.
         path: PathBuf,
@@ -118,6 +130,8 @@ pub fn execute(invoked_as: &str) -> Result<(), CliError> {
         }
         Some(Command::Check { args }) => crate::eval::run(crate::ncl::Verb::Check, &args, cli.json),
         Some(Command::Eval { args }) => crate::eval::run(crate::ncl::Verb::Eval, &args, cli.json),
+        Some(Command::Pack { args }) => crate::pack::run(&args, cli.json),
+        Some(Command::Gen { args }) => crate::gen::run(&args, cli.json),
         Some(Command::Apply { path, rest }) => facet::run("apply", &path, &rest, cli.json),
         Some(Command::Doctor { no_materialize }) => crate::doctor::run(cli.json, !no_materialize),
         Some(Command::Status { path, rest }) => {
@@ -174,19 +188,19 @@ mod tests {
     use clap::CommandFactory;
 
     #[test]
-    fn help_mentions_wrap_not_reimplement() {
+    fn help_mentions_in_process_vm() {
         let help = Cli::command().render_long_help().to_string();
         assert!(
-            help.contains("wrap"),
-            "help should describe wrapping engines"
+            help.contains("hedron-ncl"),
+            "help should name hedron-ncl as the VM host"
         );
         assert!(
-            help.contains("does not reimplement"),
-            "help should say wrap does not reimplement eval"
+            help.contains("in-process"),
+            "help should say check/eval/pack/gen run in-process"
         );
         assert!(
             help.contains("nickel-lang-core"),
-            "help should mention no second VM"
+            "help should mention the exact-1 nickel-lang-core lock law"
         );
     }
 

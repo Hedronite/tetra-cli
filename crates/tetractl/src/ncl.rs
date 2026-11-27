@@ -155,7 +155,7 @@ fn collect_tokens(args: &[String], json_from_cli: bool) -> Result<Tokens, CliErr
     })
 }
 
-fn strip_globals(
+pub(crate) fn strip_globals(
     args: &[String],
     json_from_cli: bool,
 ) -> Result<(bool, bool, Vec<String>), CliError> {

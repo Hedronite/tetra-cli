@@ -106,25 +106,18 @@ impl DoctorReport {
     pub fn collect_in(cwd: &Path, materialize: bool) -> Self {
         let bin = facet_bin();
         let reachable = facet_reachable(&bin);
-        let capabilities = probe_capabilities(&bin, reachable);
+        let capabilities = Capabilities {
+            ncl: true,
+            pack: true,
+        };
         let mut problems = Vec::new();
         if !reachable {
             problems.push(format!(
                 "facet is not runnable as `{}`; install facet on PATH or set FACET_BIN",
                 path_basename(&bin)
             ));
-        } else if !capabilities.ncl {
-            problems
-                .push("facet has no `ncl` subcommand; need a Facet with the Nickel pack".into());
-        } else if !capabilities.pack {
-            problems
-                .push("facet ncl has no `pack`; need Facet at or after the ncl-pack cut".into());
         }
-        let pack = if capabilities.pack {
-            materialize_pack(&bin, cwd, materialize, &mut problems)
-        } else {
-            PackLeg::default()
-        };
+        let pack = materialize_pack(cwd, materialize, &mut problems);
         if env_is_set("FACET_KUBECONFIG") && !env_is_file("FACET_KUBECONFIG") {
             problems.push("cluster profile is set but is not a readable file".into());
         }
@@ -151,9 +144,9 @@ impl DoctorReport {
         }
     }
 
-    /// The engine is usable: facet runs and has `ncl` and `pack`.
+    /// Apply/session/observe still need Facet. check/eval/pack/gen do not.
     pub fn engine_ok(&self) -> bool {
-        self.facet.reachable && self.capabilities.ncl && self.capabilities.pack
+        self.facet.reachable
     }
 
     pub fn to_json(&self) -> Result<Value, CliError> {
@@ -227,14 +220,9 @@ pub fn run(json: bool, materialize: bool) -> Result<(), CliError> {
     }
 }
 
-/// Run `facet ncl pack` into a staging dir; on `materialize` move it to
+/// Write the embedded pack into a staging dir; on `materialize` move it to
 /// `<cwd>/.tetra/pack/<contractSet>/`, else probe and remove. Checks the marker.
-fn materialize_pack(
-    bin: &str,
-    cwd: &Path,
-    materialize: bool,
-    problems: &mut Vec<String>,
-) -> PackLeg {
+fn materialize_pack(cwd: &Path, materialize: bool, problems: &mut Vec<String>) -> PackLeg {
     let base = if materialize {
         cwd.join(PACK_DIR)
     } else {
@@ -250,22 +238,15 @@ fn materialize_pack(
         ));
         return PackLeg::default();
     }
-    let out = Command::new(bin)
-        .args(["ncl", "pack", "--out"])
-        .arg(&staging)
-        .arg("--json")
-        .output();
-    let contract_set = match out {
-        Ok(out) if out.status.success() => serde_json::from_slice::<Value>(&out.stdout)
-            .ok()
-            .and_then(|v| v["contractSet"].as_str().map(str::to_owned)),
-        _ => None,
+    let written = match hedron_ncl::pack::write_to(&staging) {
+        Ok(w) => w,
+        Err(error) => {
+            problems.push(format!("cannot write the contract pack: {}", error.kind()));
+            let _ = fs::remove_dir_all(if materialize { staging } else { base });
+            return PackLeg::default();
+        }
     };
-    let Some(contract_set) = contract_set else {
-        problems.push("facet ncl pack --out did not report a contractSet".into());
-        let _ = fs::remove_dir_all(if materialize { staging } else { base });
-        return PackLeg::default();
-    };
+    let contract_set = written.contract_set.to_owned();
     if !materialize {
         let marker_matches = marker_matches(&staging, &contract_set);
         let _ = fs::remove_dir_all(&base);
@@ -357,29 +338,6 @@ fn path_basename(path: &str) -> String {
 fn facet_reachable(bin: &str) -> bool {
     Command::new(bin)
         .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false)
-}
-
-fn probe_capabilities(bin: &str, reachable: bool) -> Capabilities {
-    if !reachable {
-        return Capabilities {
-            ncl: false,
-            pack: false,
-        };
-    }
-    Capabilities {
-        ncl: facet_subcommand_ok(bin, &["ncl", "--help"]),
-        pack: facet_subcommand_ok(bin, &["ncl", "pack", "--help"]),
-    }
-}
-
-fn facet_subcommand_ok(bin: &str, args: &[&str]) -> bool {
-    Command::new(bin)
-        .args(args)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()

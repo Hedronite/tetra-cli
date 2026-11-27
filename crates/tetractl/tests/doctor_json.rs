@@ -1,11 +1,15 @@
 //! G2c: `tetractl doctor --json` schema and no secret path fields.
 
+mod common;
 use std::process::Command;
 
 use serde_json::Value;
 
 fn doctor_json() -> Value {
-    let output = Command::new(env!("CARGO_BIN_EXE_tetractl"))
+    let tmp = tempfile::tempdir().unwrap();
+    let mut output = Command::new(env!("CARGO_BIN_EXE_tetractl"));
+    common::hermetic(&mut output, tmp.path());
+    let output = output
         .args(["doctor", "--json"])
         .output()
         .expect("tetractl doctor --json");
@@ -78,7 +82,10 @@ fn doctor_json_has_no_secret_path_fields() {
 
 #[test]
 fn castle_like_host_reports_cluster_profile_missing() {
-    let output = Command::new(env!("CARGO_BIN_EXE_tetractl"))
+    let tmp = tempfile::tempdir().unwrap();
+    let mut output = Command::new(env!("CARGO_BIN_EXE_tetractl"));
+    common::hermetic(&mut output, tmp.path());
+    let output = output
         .env_remove("FACET_KUBECONFIG")
         .args(["doctor", "--json"])
         .output()

@@ -1,5 +1,6 @@
 //! G3c: `tetractl diff --json` and `--yaml` view flag (not apply).
 
+mod common;
 use std::path::Path;
 use std::process::Command;
 
@@ -32,7 +33,10 @@ fn sandbox() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
 #[test]
 fn diff_json_reports_drift_when_profiles_missing() {
     let (_dir, pack, world) = sandbox();
-    let output = Command::new(env!("CARGO_BIN_EXE_tetractl"))
+    let tmp = tempfile::tempdir().unwrap();
+    let mut output = Command::new(env!("CARGO_BIN_EXE_tetractl"));
+    common::hermetic(&mut output, tmp.path());
+    let output = output
         .env_remove("FACET_KUBECONFIG")
         .env_remove("FACET_HEDRON_DB")
         .args([
@@ -55,7 +59,10 @@ fn diff_json_reports_drift_when_profiles_missing() {
 #[test]
 fn diff_yaml_is_view_only_and_exits_zero() {
     let (_dir, pack, world) = sandbox();
-    let output = Command::new(env!("CARGO_BIN_EXE_tetractl"))
+    let tmp = tempfile::tempdir().unwrap();
+    let mut output = Command::new(env!("CARGO_BIN_EXE_tetractl"));
+    common::hermetic(&mut output, tmp.path());
+    let output = output
         .env_remove("FACET_KUBECONFIG")
         .args([
             "diff",

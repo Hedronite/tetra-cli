@@ -1,5 +1,6 @@
 //! G3c: `tetractl status --json` schema.
 
+mod common;
 use std::path::Path;
 use std::process::Command;
 
@@ -32,7 +33,10 @@ fn sandbox() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
 #[test]
 fn status_json_schema_is_stable() {
     let (_dir, pack, world) = sandbox();
-    let output = Command::new(env!("CARGO_BIN_EXE_tetractl"))
+    let tmp = tempfile::tempdir().unwrap();
+    let mut output = Command::new(env!("CARGO_BIN_EXE_tetractl"));
+    common::hermetic(&mut output, tmp.path());
+    let output = output
         .env_remove("FACET_KUBECONFIG")
         .env_remove("FACET_HEDRON_DB")
         .args([

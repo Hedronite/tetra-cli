@@ -4,12 +4,19 @@
 //! without one. On a host without cluster/intent profiles the leg drift
 //! never clears (host law), so this proves the hash rule and the plumbing.
 
+mod common;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn tetractl(args: &[&str], cwd: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tetractl"))
-        .args(args)
+    let home = cwd.join("home");
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_tetractl"));
+    common::hermetic(&mut cmd, &home);
+    if let Some(bin) = std::env::var_os("FACET_BIN") {
+        cmd.env("FACET_BIN", bin);
+    }
+    cmd.args(args)
         .env_remove("FACET_KUBECONFIG")
         .env_remove("FACET_HEDRON_DB")
         .current_dir(cwd)
@@ -27,6 +34,7 @@ const IMPORT: &str = ".tetra/pack/k8s-1.34-h3s-0.9.1";
 fn sandbox() -> Sandbox {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().to_path_buf();
+    std::fs::create_dir_all(root.join("home")).unwrap();
     let doctor = tetractl(&["doctor", "--json"], &root);
     assert_eq!(
         doctor.status.code(),
@@ -158,7 +166,9 @@ fn diff_never_applies_and_engine_errors_pass_through() {
     assert_eq!(apply.status.code(), Some(0));
     let facet = std::env::var_os("FACET_BIN").unwrap_or_else(|| "facet".into());
     let rows = |dir: &Path| -> usize {
-        let out = Command::new(&facet)
+        let mut hist = Command::new(&facet);
+        common::hermetic(&mut hist, &dir.join("home"));
+        let out = hist
             .args(["history", "worlds", "--json"])
             .current_dir(dir)
             .output()

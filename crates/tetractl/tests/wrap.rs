@@ -1,36 +1,22 @@
-//! M1 G1a: `tetractl check|eval|apply` exec `facet ncl check|export|apply`.
-//! Parity is byte parity on stdout, stderr and exit code, and Facet records
-//! exactly one Lattice row per wrapped call. These tests need a real `facet`
-//! (`$FACET_BIN` or `facet` on PATH) and **fail** when it is absent: a
-//! silent skip would grade a wrapper that wraps nothing.
+//! Apply still execs Facet; check/eval are in-process. Parity is byte parity
+//! on stdout, stderr and exit code. Tests need a real `facet` (`$FACET_BIN`)
+//! and **fail** when it is absent. Spawns are hermetic (QA T2 G2 N6).
+
+mod common;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-fn facet_bin() -> PathBuf {
-    std::env::var_os("FACET_BIN")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("facet"))
+fn home(cwd: &Path) -> PathBuf {
+    cwd.join("home")
 }
 
 fn facet(args: &[&str], cwd: &Path) -> Output {
-    Command::new(facet_bin())
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .unwrap_or_else(|e| panic!("facet must be runnable for wrap tests ({e}); set FACET_BIN"))
+    common::facet(args, cwd, &home(cwd))
 }
 
 fn tetractl(bin: &str, args: &[&str], cwd: &Path) -> Output {
-    let exe = match bin {
-        "tetra" => env!("CARGO_BIN_EXE_tetra"),
-        _ => env!("CARGO_BIN_EXE_tetractl"),
-    };
-    Command::new(exe)
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .expect("tetractl binary runs")
+    common::tetra_bin(bin, args, cwd, &home(cwd))
 }
 
 /// A sandbox with the pack materialized and the fixture copied beside it.
@@ -44,6 +30,7 @@ struct Sandbox {
 fn sandbox() -> Sandbox {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().to_path_buf();
+    std::fs::create_dir_all(root.join("home")).unwrap();
     let pack = root.join("pack");
     let out = facet(
         &["ncl", "pack", "--out", pack.to_str().unwrap(), "--json"],
@@ -236,7 +223,9 @@ fn missing_facet_fails_loudly_not_silently() {
         };
         let pack = sb.pack.to_str().unwrap();
         let world = sb.world.to_str().unwrap();
-        let eval_out = Command::new(exe)
+        let mut eval_cmd = Command::new(exe);
+        common::hermetic(&mut eval_cmd, &home(&sb.root));
+        let eval_out = eval_cmd
             .args(["--json", "eval", world, "--import-path", pack])
             .env("FACET_BIN", "/nonexistent/facet")
             .current_dir(&sb.root)
@@ -249,7 +238,9 @@ fn missing_facet_fails_loudly_not_silently() {
             String::from_utf8_lossy(&eval_out.stdout),
             String::from_utf8_lossy(&eval_out.stderr)
         );
-        let apply_out = Command::new(exe)
+        let mut apply_cmd = Command::new(exe);
+        common::hermetic(&mut apply_cmd, &home(&sb.root));
+        let apply_out = apply_cmd
             .args(["--json", "apply", world, "--import-path", pack])
             .env("FACET_BIN", "/nonexistent/facet")
             .current_dir(&sb.root)

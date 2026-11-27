@@ -234,18 +234,29 @@ fn missing_facet_fails_loudly_not_silently() {
             "tetra" => env!("CARGO_BIN_EXE_tetra"),
             _ => env!("CARGO_BIN_EXE_tetractl"),
         };
-        let out = Command::new(exe)
-            .args(["--json", "eval", sb.world.to_str().unwrap()])
+        let pack = sb.pack.to_str().unwrap();
+        let world = sb.world.to_str().unwrap();
+        let eval_out = Command::new(exe)
+            .args(["--json", "eval", world, "--import-path", pack])
             .env("FACET_BIN", "/nonexistent/facet")
             .current_dir(&sb.root)
             .output()
             .unwrap();
-        assert_ne!(out.status.code(), Some(0), "{bin}");
-        assert!(
-            out.stdout.is_empty(),
-            "{bin}: nothing on stdout without an engine"
+        assert_eq!(
+            eval_out.status.code(),
+            Some(0),
+            "{bin} eval must succeed without FACET_BIN: {}{}",
+            String::from_utf8_lossy(&eval_out.stdout),
+            String::from_utf8_lossy(&eval_out.stderr)
         );
-        let err = String::from_utf8_lossy(&out.stderr);
+        let apply_out = Command::new(exe)
+            .args(["--json", "apply", world, "--import-path", pack])
+            .env("FACET_BIN", "/nonexistent/facet")
+            .current_dir(&sb.root)
+            .output()
+            .unwrap();
+        assert_ne!(apply_out.status.code(), Some(0), "{bin} apply");
+        let err = String::from_utf8_lossy(&apply_out.stderr);
         assert!(err.contains("/nonexistent/facet"), "{bin}: {err}");
     }
 }

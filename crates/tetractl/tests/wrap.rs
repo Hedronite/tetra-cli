@@ -1,4 +1,4 @@
-//! Apply still execs Facet; check/eval are in-process. Parity is byte parity
+//! Apply evaluates once and hands a frozen bundle to Facet; check/eval are in-process. Parity is byte parity
 //! on stdout, stderr and exit code. Tests need a real `facet` (`$FACET_BIN`)
 //! and **fail** when it is absent. Spawns are hermetic (QA T2 G2 N6).
 

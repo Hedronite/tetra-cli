@@ -478,6 +478,30 @@ fn live_check_eval_pack_parity_battery() {
     );
     cmp(
         &w,
+        "secret --var API_KEY",
+        &[
+            "check",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--var",
+            "calls.API_KEY=1",
+            "--json",
+        ],
+        &[
+            "ncl",
+            "check",
+            "tetra/world.ncl",
+            "--import-path",
+            pack,
+            "--var",
+            "calls.API_KEY=1",
+            "--json",
+        ],
+        &[],
+    );
+    cmp(
+        &w,
         "import drift",
         &[
             "check",

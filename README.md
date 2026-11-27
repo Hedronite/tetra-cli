@@ -31,7 +31,7 @@
 
 ---
 
-**Tetra** hosts the platform's only Nickel VM through `hedron-ncl`. Operators and agents type `tetractl`, not `facet ncl` + `hedron` HQL + `kubectl`. `check`, `eval`, `pack`, and `gen` run in-process. `apply` still hands off to Facet. HedronDB still records intent. h3s + kubectl still own Ready. Tetra also fills `doctor`, `session`, `status`, `diff`, and `blame`.
+**Tetra** hosts the platform's only Nickel VM through `hedron-ncl`. Operators and agents type `tetractl`, not `facet ncl` + `hedron` HQL + `kubectl`. `check`, `eval`, `pack`, and `gen` run in-process. `apply` evaluates once and executes a frozen bundle through Facet. HedronDB still records intent. h3s + kubectl still own Ready. Tetra also fills `doctor`, `session`, `status`, `diff`, and `blame`.
 
 ```
 tetra      — the binary
@@ -62,13 +62,13 @@ tetractl doctor
 tetractl session start
 tetractl check worlds/prod.ncl
 tetractl eval  worlds/prod.ncl --json
-tetractl apply worlds/prod.ncl --dry-run --json
+tetractl apply worlds/prod.ncl --json
 tetractl status worlds/prod.ncl
 tetractl diff   worlds/prod.ncl
 tetractl blame  '<Status JSON or kubectl stderr>'
 ```
 
-`TETRA_SESSION` is a Facet session ULID (`FACET_SESSION`). `--json` emits Facet JSON (`schemaVersion: 1`). Extra flags after the world path (`--var`, `--import-path`, …) are parsed in-process for check/eval; apply still forwards to Facet.
+`TETRA_SESSION` is a Facet session ULID (`FACET_SESSION`). `--json` emits Facet JSON (`schemaVersion: 1`). Extra flags after the world path (`--var`, `--import-path`, …) are parsed in-process. `apply` evaluates once, then execs Facet `apply --frozen -`.
 
 crates.io name `tetra` is a game framework. Install **`tetractl`**. Both bins come from that crate.
 
@@ -77,12 +77,12 @@ crates.io name `tetra` is a game framework. Install **`tetractl`**. Both bins co
 | You type | Engine |
 |---|---|
 | `tetractl check` / `eval` / `pack` / `gen` | in-process `hedron-ncl` |
-| `tetractl apply` | `facet ncl apply` |
+| `tetractl apply` | in-process eval, then Facet `apply --frozen -` |
 | intent status of names | HedronDB HQL |
 | cluster get / Ready | `kubectl` on the host that has kubeconfig |
 | `doctor` `session` `status` `diff` `blame` | Tetra only |
 
-`facet ncl` remains the engine CLI for apply and for debug. Hash and exit parity with `facet ncl check|export|pack` is the contract.
+`facet ncl` remains the debug CLI. Hash and exit parity with `facet ncl check|export|pack` is the contract. `tetractl apply` matches `facet ncl apply` on stdout, stderr, exit, and the Lattice `ncl:apply` row.
 
 ### What you do not get
 
@@ -96,10 +96,10 @@ crates.io name `tetra` is a game framework. Install **`tetractl`**. Both bins co
 
 ## How it works
 
-One rule: **Nickel is the world language; Tetra hosts the VM; apply still names Facet.**
+One rule: **Nickel is the world language; Tetra hosts the VM; apply freezes a bundle for Facet.**
 
 - Desired state lives in `worlds/<vault>.ncl` (`{ cluster, intent, calls } \| World`).
-- `tetractl check|eval|pack|gen` run in-process. `tetractl apply` execs `facet ncl apply` (`FACET_BIN`, default `facet`).
+- `tetractl check|eval|pack|gen` run in-process. `tetractl apply` evaluates once and execs Facet `apply --frozen -` (`FACET_BIN`, default `facet`).
 - `tetractl session start|end` wraps `facet session`. The ULID is the join key.
 - `tetractl status` reads the three engines by **names**. `diff` is desired export vs that status (exit 1 on drift). `blame` parses admission errors and never evals Nickel.
 - `tetractl doctor` is capability + host law. It never prints secrets.

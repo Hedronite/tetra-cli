@@ -1,6 +1,6 @@
 //! Facet engine exec — `FACET_BIN`, session env forwarding, `schemaVersion: 1` passthrough.
 
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -99,6 +99,52 @@ where
     })
 }
 
+/// Exec Facet with stdin closed after `stdin` is written, plus optional `--json`
+/// validation and session forwarding.
+pub fn exec_with_stdin<I, S>(
+    args: I,
+    stdin: &[u8],
+    json: bool,
+    forward: bool,
+) -> Result<FacetOutput, CliError>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let facet = facet_bin();
+    let mut command = Command::new(&facet);
+    command.args(args);
+    if forward {
+        forward_session(&mut command);
+    }
+    let mut child = command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| CliError::engine(format!("failed to exec {facet}: {error}"), 127))?;
+    child
+        .stdin
+        .as_mut()
+        .ok_or_else(|| CliError::engine(format!("failed to open stdin for {facet}"), 127))?
+        .write_all(stdin)
+        .map_err(|error| {
+            CliError::engine(format!("failed to write stdin to {facet}: {error}"), 127)
+        })?;
+    drop(child.stdin.take());
+    let output = child
+        .wait_with_output()
+        .map_err(|error| CliError::engine(error.to_string(), 127))?;
+    if json {
+        passthrough_json(&output.stdout)?;
+    }
+    Ok(FacetOutput {
+        stdout: output.stdout,
+        stderr: output.stderr,
+        exit_code: output.status.code().unwrap_or(1) as u8,
+    })
+}
+
 /// Set [`TETRA_SESSION_ENV`] and [`FACET_SESSION_ENV`] to the same ULID.
 pub fn stamp_session(id: &str) {
     std::env::set_var(TETRA_SESSION_ENV, id);
@@ -126,21 +172,6 @@ pub fn current_session_id() -> Result<String, CliError> {
     Err(CliError::usage(
         "no active session; run `tetractl session start` first",
     ))
-}
-
-/// `check` → `facet ncl check`, `export` → `facet ncl export`, `apply` → `facet ncl apply`.
-pub fn run(sub: &str, path: &Path, rest: &[String], json: bool) -> Result<(), CliError> {
-    let mut args: Vec<std::ffi::OsString> =
-        vec!["ncl".into(), sub.into(), path.as_os_str().to_owned()];
-    args.extend(rest.iter().map(std::ffi::OsString::from));
-    let output = exec(args, json, true)?;
-    io::stderr().write_all(&output.stderr).ok();
-    io::stdout().write_all(&output.stdout).ok();
-    if output.exit_code == 0 {
-        Ok(())
-    } else {
-        Err(CliError::engine(String::new(), output.exit_code))
-    }
 }
 
 /// Export a world module via in-process hedron-ncl (G1). Apply still execs Facet.

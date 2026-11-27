@@ -403,7 +403,11 @@ mod tests {
         let _guard = ENV_TEST_LOCK.lock().unwrap();
         let saved_db = std::env::var_os(FACET_HEDRON_DB_ENV);
         let saved_bin = std::env::var_os(crate::facet::FACET_BIN_ENV);
+        let saved_facet_import = std::env::var_os("FACET_NCL_IMPORT_PATH");
+        let saved_tetra_import = std::env::var_os("TETRA_NCL_IMPORT_PATH");
         std::env::remove_var(FACET_HEDRON_DB_ENV);
+        std::env::remove_var("FACET_NCL_IMPORT_PATH");
+        std::env::remove_var("TETRA_NCL_IMPORT_PATH");
 
         let dir = tempfile::tempdir().unwrap();
         let script = dir.path().join("mock-facet");
@@ -441,6 +445,16 @@ mod tests {
             std::env::set_var(crate::facet::FACET_BIN_ENV, value);
         } else {
             std::env::remove_var(crate::facet::FACET_BIN_ENV);
+        }
+        if let Some(value) = saved_facet_import {
+            std::env::set_var("FACET_NCL_IMPORT_PATH", value);
+        } else {
+            std::env::remove_var("FACET_NCL_IMPORT_PATH");
+        }
+        if let Some(value) = saved_tetra_import {
+            std::env::set_var("TETRA_NCL_IMPORT_PATH", value);
+        } else {
+            std::env::remove_var("TETRA_NCL_IMPORT_PATH");
         }
     }
 }

@@ -23,6 +23,7 @@ const SECRET_SEGMENTS: &[&str] = &["token", "password", "api_key", "authorizatio
 pub enum Verb {
     Check,
     Eval,
+    Apply,
 }
 
 #[derive(Debug)]
@@ -201,6 +202,10 @@ fn freeze_error(verb: Verb) -> CliError {
         Verb::Eval => fail_msg(
             INVALID_ARGUMENTS,
             "--frozen requires a prior ncl export recorded in Lattice for this module",
+        ),
+        Verb::Apply => fail_msg(
+            INVALID_ARGUMENTS,
+            "ncl apply does not support --frozen; use ncl export --frozen",
         ),
     }
 }

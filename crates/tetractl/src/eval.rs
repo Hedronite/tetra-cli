@@ -66,6 +66,7 @@ fn envelope(verb: Verb, req: &Request) -> Result<Value, CliError> {
                 "schemaVersion": SCHEMA_VERSION,
             }))
         }
+        Verb::Apply => unreachable!("apply does not use eval envelope"),
         Verb::Eval => {
             let full = hedron_ncl::eval::export(input, &req.overrides, &imports)
                 .map_err(ncl::map_eval_error)?;
@@ -117,6 +118,7 @@ fn human_line(verb: Verb, req: &Request, value: &Value) -> String {
                 "ok {path} (moduleHash={module_hash} exportHash={export_hash} contractSet={contract})"
             )
         }
+        Verb::Apply => unreachable!("apply does not use eval human_line"),
     }
 }
 

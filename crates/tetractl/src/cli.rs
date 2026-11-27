@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::{CommandFactory, Parser, Subcommand};
 
 use crate::error::CliError;
-use crate::{facet, session};
+use crate::session;
 
 pub const WRAP_ABOUT: &str =
     "World command for the Hedronite platform. Tetra hosts the only Nickel VM.";
@@ -12,7 +12,7 @@ pub const WRAP_LONG_ABOUT: &str = "\
 Nickel is the language. tetractl (and the tetra binary alias) is the world command.
 
 Tetra hosts the platform's only Nickel VM through hedron-ncl. check, eval, pack, and gen \
-run in-process. apply still hands off to Facet. Tetra does not open Lattice.
+run in-process. apply evaluates once and executes a frozen bundle through Facet. Tetra does not open Lattice.
 
 Cargo.lock carries exactly one nickel-lang-core, exactly one hedron-ncl, and zero rusqlite. \
 gen emits embedded plain-Rust templates keyed to CONTRACT_SET, not overlay-derived code.";
@@ -60,12 +60,11 @@ enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
-    /// Apply a Nickel world module (hands off to `facet ncl apply`).
+    /// Evaluate once and execute a frozen bundle via Facet (`apply --frozen -`).
     Apply {
-        /// Path to a .ncl module.
-        path: PathBuf,
+        /// Path, then `--var` / `--import-path` / `--json` / `-q`.
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
+        args: Vec<String>,
     },
     /// Capability and host-law preflight (never prints secrets).
     Doctor {
@@ -132,7 +131,7 @@ pub fn execute(invoked_as: &str) -> Result<(), CliError> {
         Some(Command::Eval { args }) => crate::eval::run(crate::ncl::Verb::Eval, &args, cli.json),
         Some(Command::Pack { args }) => crate::pack::run(&args, cli.json),
         Some(Command::Gen { args }) => crate::gen::run(&args, cli.json),
-        Some(Command::Apply { path, rest }) => facet::run("apply", &path, &rest, cli.json),
+        Some(Command::Apply { args }) => crate::apply::run(&args, cli.json),
         Some(Command::Doctor { no_materialize }) => crate::doctor::run(cli.json, !no_materialize),
         Some(Command::Status { path, rest }) => {
             let (rest, json, _) = split_view_flags(rest, cli.json, false);

@@ -6,8 +6,9 @@
 # Deny runs the repo scope (advisories, bans, sources). A bare
 # `cargo deny check` is for cargo-tops gate locally.
 #
-# Wrap tests need a real facet binary. CI downloads the pinned Facet v0.8.1
-# release, sha256-checks it against SHA256SUMS, and exports FACET_BIN.
+# Wrap and apply-split tests need a real facet binary that understands
+# `apply --frozen`. CI builds Facet from FACET_REV on a cache miss and
+# exports FACET_BIN. The cache stores only that binary.
 #
 # Every action is pinned by commit SHA, with its tag as a trailing comment.
 name: rust-tops
@@ -27,7 +28,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  FACET_RELEASE: "0.8.1"
+  FACET_REV: "0d66def5ede4fcfaece8a38a898a529062f8212b"
 
 jobs:
   rust-tops:
@@ -49,20 +50,32 @@ jobs:
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-deny@0.20.2,cargo-nextest@0.9.149
-      - name: Install Facet v0.8.1 and export FACET_BIN
+      - name: Cache Facet binary
+        id: facet-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/facet-bin
+          key: facet-bin-${{ env.FACET_REV }}-${{ runner.os }}
+      - name: Build Facet from FACET_REV
+        if: steps.facet-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          asset="facet-cli-${FACET_RELEASE}-linux-x64.tar.gz"
-          expected="21522fb9f54a79d03f8003b61434e27d74db4265ba85c9933dc04388cfaf867c"
-          curl -fsSL -o "${asset}" "https://github.com/Hedronite/facet/releases/download/v${FACET_RELEASE}/${asset}"
-          curl -fsSL -o SHA256SUMS "https://github.com/Hedronite/facet/releases/download/v${FACET_RELEASE}/SHA256SUMS"
-          grep " ${asset}$" SHA256SUMS | sha256sum -c -
-          echo "${expected}  ${asset}" | sha256sum -c -
-          mkdir -p "${HOME}/.local/facet"
-          tar -xzf "${asset}" -C "${HOME}/.local/facet"
-          test -x "${HOME}/.local/facet/facet"
-          echo "FACET_BIN=${HOME}/.local/facet/facet" >> "${GITHUB_ENV}"
-          "${HOME}/.local/facet/facet" --version
+          mkdir -p "${RUNNER_TEMP}/facet-bin"
+          git clone --filter=blob:none https://github.com/Hedronite/facet "${RUNNER_TEMP}/facet-src"
+          git -C "${RUNNER_TEMP}/facet-src" checkout "${FACET_REV}"
+          test "$(git -C "${RUNNER_TEMP}/facet-src" rev-parse HEAD)" = "${FACET_REV}"
+          (
+            cd "${RUNNER_TEMP}/facet-src"
+            cargo build --locked -p facet-cli --bin facet
+          )
+          cp "${RUNNER_TEMP}/facet-src/target/debug/facet" "${RUNNER_TEMP}/facet-bin/facet"
+          chmod +x "${RUNNER_TEMP}/facet-bin/facet"
+      - name: Export FACET_BIN
+        run: |
+          set -euo pipefail
+          test -x "${RUNNER_TEMP}/facet-bin/facet"
+          echo "FACET_BIN=${RUNNER_TEMP}/facet-bin/facet" >> "${GITHUB_ENV}"
+          "${RUNNER_TEMP}/facet-bin/facet" --version
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
       - name: cargo clippy -D warnings

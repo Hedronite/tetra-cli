@@ -3,8 +3,8 @@
 Tetra is the world command. You are talking to a *world*, not to three tools.
 
 Tetra hosts the platform's only Nickel VM through `hedron-ncl`. `tetractl check`,
-`eval`, `pack`, and `gen` run in-process. `apply` still hands off to Facet until
-the frozen-bundle handoff. Tetra does not open Lattice and does not link
+`eval`, `pack`, and `gen` run in-process. `apply` evaluates once and executes a
+frozen bundle through Facet (`apply --frozen -`). Tetra does not open Lattice and does not link
 `rusqlite`. `Cargo.lock` carries exactly one `nickel-lang-core` and exactly one
 `hedron-ncl`.
 
@@ -37,5 +37,5 @@ tetractl eval  worlds/prod.ncl --json
 tetractl pack  --out pack --json
 tetractl gen   pod-profile --out pod_profile_gen.rs
 tetractl diff  worlds/prod.ncl --json
-tetractl apply worlds/prod.ncl --dry-run --json
+tetractl apply worlds/prod.ncl --json
 ```

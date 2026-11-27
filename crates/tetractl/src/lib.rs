@@ -1,8 +1,48 @@
+mod apply;
 mod blame;
 mod cli;
 mod diff;
 mod doctor;
-mod error;
+mod error {
+    use std::process::ExitCode;
+
+    #[derive(Debug)]
+    pub struct CliError {
+        message: String,
+        code: u8,
+    }
+
+    impl CliError {
+        pub fn usage(message: impl Into<String>) -> Self {
+            Self {
+                message: message.into(),
+                code: 2,
+            }
+        }
+
+        pub fn engine(message: impl Into<String>, code: u8) -> Self {
+            Self {
+                message: message.into(),
+                code,
+            }
+        }
+
+        pub fn code(&self) -> u8 {
+            self.code
+        }
+
+        pub fn message(&self) -> &str {
+            &self.message
+        }
+
+        pub fn exit(self) -> ExitCode {
+            if !self.message.is_empty() {
+                eprintln!("{}", self.message);
+            }
+            ExitCode::from(self.code)
+        }
+    }
+}
 mod eval;
 mod facet;
 mod gen;

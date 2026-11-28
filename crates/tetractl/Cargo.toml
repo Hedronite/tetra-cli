@@ -1,6 +1,6 @@
 [package]
 name = "tetractl"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "World command for the Hedronite platform. Nickel is the language; tetractl wraps Facet/Hedron/kubectl as they are."
@@ -28,7 +28,7 @@ name = "tetra"
 path = "src/main.rs"
 
 [dependencies]
-hedron-ncl = { path = "../hedron-ncl" }
+hedron-ncl = { path = "../hedron-ncl", version = "0.8.1" }
 sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

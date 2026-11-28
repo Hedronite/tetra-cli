@@ -42,7 +42,7 @@ It is the Nickel VM host, not a kubectl clone, and not an MCP server (yet).
 
 | | Pin |
 |---|---|
-| Binary | `tetractl` / `tetra` ([`tetractl`](https://crates.io/crates/tetractl) 0.0.1) |
+| Binary | `tetractl` / `tetra` ([`tetractl`](https://crates.io/crates/tetractl) 0.1.0) |
 | Nickel host | this repo, `crates/hedron-ncl` (`k8s-1.34-h3s-0.9.1`) |
 | Lattice history | [`facet-lattice`](https://crates.io/crates/facet-lattice) — different axis; there is no `facet-ncl` |
 | MSRV | 1.95 |
@@ -50,7 +50,7 @@ It is the Nickel VM host, not a kubectl clone, and not an MCP server (yet).
 
 ## Quick start
 
-Rust **1.95**. `check` / `eval` / `pack` / `gen` run in-process. `facet` must be on `PATH` (or `FACET_BIN`) for `apply` / `session` / observe. `hedron` and `kubectl` are optional until you ask for intent or cluster.
+Rust **1.95**. `check` / `eval` / `pack` / `gen` run in-process. Install: `cargo install tetractl --version 0.1.0`; use Facet **0.9.0** or newer for `apply`. `facet` must be on `PATH` (or `FACET_BIN`) for `apply` / `session` / observe. `hedron` and `kubectl` are optional until you ask for intent or cluster.
 
 ```sh
 cargo install tetractl
@@ -113,7 +113,7 @@ crates/hedron-ncl/     # the Nickel VM (MIT OR Apache-2.0)
 
 ## Status
 
-Workspace **0.0.1** matches crates.io [`tetractl`](https://crates.io/crates/tetractl). M1 verbs plus in-process `check` / `eval` / `pack` / `gen` are in this tree. CI is `.github/workflows/rust-tops.yml`.
+**0.1.0** is the current `tetractl` release on crates.io. M1 verbs plus in-process `check` / `eval` / `pack` / `gen` are in this tree. CI is `.github/workflows/rust-tops.yml`.
 
 ## Contributing
 

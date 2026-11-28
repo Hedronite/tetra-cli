@@ -1,7 +1,7 @@
 [package]
 name = "hedron-ncl"
 # Nickel contract pack + the only Nickel VM host on the platform (SPEC-nickel G0).
-# Follows the Facet CLI axis; MSRV inherits the workspace 1.95.
+# hedron-ncl version axis in tetra-cli; MSRV inherits the workspace 1.95.
 version = "0.8.1"
 # Edition 2021, not the workspace 2024: `gen` is a reserved keyword in 2024 and the
 # generated-predicate module must stay reachable as `hedron_ncl::gen::*` for

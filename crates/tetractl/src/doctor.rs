@@ -2,7 +2,7 @@
 //! (G2a), on the presence-only JSON envelope (G2c). Never secret values.
 //!
 //! Host law: cluster verbs run on the engine host that holds the cluster
-//! profile (tower/lima); intent verbs need the intent profile; eval runs
+//! profile (the cluster engine host); intent verbs need the intent profile; eval runs
 //! wherever facet runs. Doctor says which of those this host is, by name.
 //! It also materializes the contract pack under `.tetra/pack/<contractSet>/`
 //! so worlds can `import "hedron-ncl/…"` with `--import-path`.
@@ -29,7 +29,7 @@ pub const PACK_DIR: &str = ".tetra/pack";
 
 /// The host law sentence carried in `host.law`.
 pub const HOST_LAW: &str =
-    "cluster verbs run on the engine host that holds the cluster profile (tower/lima); \
+    "cluster verbs run on the engine host that holds the cluster profile (the cluster engine host); \
 intent verbs need the intent profile (FACET_HEDRON_DB); eval runs wherever facet runs; \
 credentials are named, never printed";
 

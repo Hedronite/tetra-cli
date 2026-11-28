@@ -81,7 +81,7 @@ fn doctor_json_has_no_secret_path_fields() {
 }
 
 #[test]
-fn castle_like_host_reports_cluster_profile_missing() {
+fn workstation_like_host_reports_cluster_profile_missing() {
     let tmp = tempfile::tempdir().unwrap();
     let mut output = Command::new(env!("CARGO_BIN_EXE_tetractl"));
     common::hermetic(&mut output, tmp.path());

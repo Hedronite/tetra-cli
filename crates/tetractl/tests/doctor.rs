@@ -42,7 +42,7 @@ fn json(out: &Output) -> serde_json::Value {
 }
 
 #[test]
-fn castle_like_host_has_engine_pack_and_host_law_but_no_profiles() {
+fn workstation_like_host_has_engine_pack_and_host_law_but_no_profiles() {
     let dir = tempfile::tempdir().unwrap();
     let out = doctor(dir.path(), &[], &["--json"]);
     let v = json(&out);
@@ -53,7 +53,10 @@ fn castle_like_host_has_engine_pack_and_host_law_but_no_profiles() {
     assert_eq!(v["cluster"]["profile"], "missing");
     assert_eq!(v["intent"]["profile"], "missing");
     assert_eq!(v["env"]["tetraSession"], false);
-    assert!(v["host"]["law"].as_str().unwrap().contains("tower/lima"));
+    assert!(v["host"]["law"]
+        .as_str()
+        .unwrap()
+        .contains("the cluster engine host"));
     assert_eq!(v["problems"], serde_json::json!([]));
     // Pack materialized under cwd at .tetra/pack/<contractSet>/hedron-ncl/…
     assert_eq!(v["pack"]["contractSet"], "k8s-1.34-h3s-0.9.1");
